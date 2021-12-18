@@ -1,0 +1,3 @@
+[submodule "StormDB-Lib/vendor/spdlog"]
+	path = StormDB-Lib/vendor/spdlog
+	url = https://github.com/gabime/spdlog
