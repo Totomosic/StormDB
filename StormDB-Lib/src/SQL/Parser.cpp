@@ -15,6 +15,7 @@ namespace StormDB
 		return result;
 	}
 
+	// Essentially order of operations
 	int GetBindingPower(const Token& token)
 	{
 		if (token.Type == TokenType::Keyword)
@@ -42,6 +43,13 @@ namespace StormDB
 		}
 	}
 
+	// Utility method to provide a location and some context for error messages
+	std::string CreateErrorMessage(const std::vector<Token>& tokens, uint32_t cursor, const std::string& message)
+	{
+		Token token = cursor >= tokens.size() ? tokens[cursor - 1] : tokens[cursor];
+		return "[" + FormatSourceLocation(token.Location) + "]: " + message + ", got: " + token.Value;
+	}
+
 	bool ExpectToken(const std::vector<Token>& tokens, uint32_t cursor, const Token& token)
 	{
 		if (cursor >= tokens.size())
@@ -49,12 +57,7 @@ namespace StormDB
 		return tokens[cursor] == token;
 	}
 
-	std::string CreateErrorMessage(const std::vector<Token>& tokens, uint32_t cursor, const std::string& message)
-	{
-		Token token = cursor >= tokens.size() ? tokens[cursor - 1] : tokens[cursor];
-		return "[" + FormatSourceLocation(token.Location) + "]: " + message + ", got: " + token.Value;
-	}
-
+	// Checks that the token is matches the given token type and increments the cursor
 	std::optional<Token> ParseToken(const std::vector<Token>& tokens, uint32_t& cursor, TokenType type)
 	{
 		if (cursor >= tokens.size())
@@ -67,7 +70,8 @@ namespace StormDB
 		return {};
 	}
 
-	std::optional<Token> ParseToken(const std::vector<Token>& tokens, uint32_t& cursor, Token token)
+	// Checks that the token is matches the given token and increments the cursor
+	std::optional<Token> ParseToken(const std::vector<Token>& tokens, uint32_t& cursor, const Token& token)
 	{
 		if (cursor >= tokens.size())
 			return {};
@@ -99,15 +103,18 @@ namespace StormDB
 	Optional<SQLExpression> ParseExpression(const std::vector<Token>& tokens, uint32_t& cursor, const std::vector<Token>& delimiters, int minBindingPower)
 	{
 		Optional<SQLExpression> expression = {};
+		// Check for open parenthesis
 		std::optional<Token> leftParen = ParseToken(tokens, cursor, TokenFromSymbol(SYMBOL_LEFT_PAREN));
 		if (leftParen)
 		{
 			Token rightParen = TokenFromSymbol(SYMBOL_RIGHT_PAREN);
+			// Parse expression inside parentheses
 			expression = ParseExpression(tokens, cursor, CombineVectors(delimiters, { rightParen }), minBindingPower);
 			if (!expression)
 			{
 				return expression;
 			}
+			// Check we closed the bracket
 			std::optional<Token> end = ParseToken(tokens, cursor, rightParen);
 			if (!end)
 			{
@@ -116,6 +123,7 @@ namespace StormDB
 		}
 		else
 		{
+			// Expect a literal (literal value or identifier) to start the expression
 			expression = ParseLiteralExpression(tokens, cursor);
 			if (!expression)
 			{
@@ -123,6 +131,7 @@ namespace StormDB
 			}
 		}
 
+		// List of all types of binary operations
 		const Token binaryOperations[] = {
 			TokenFromKeyword(KEYWORD_AND),
 			TokenFromKeyword(KEYWORD_OR),
@@ -143,12 +152,14 @@ namespace StormDB
 
 		while (cursor < tokens.size())
 		{
+			// Have we reached the end of where our expression should lie? (eg. SELECT [expressions] FROM ...)
 			for (const Token& token : delimiters)
 			{
 				if (tokens[cursor] == token)
 					return expression;
 			}
 			Token op;
+			// Find the operation symbol (+, -, *, AND, etc.)
 			for (const Token& operation : binaryOperations)
 			{
 				std::optional<Token> t = ParseToken(tokens, cursor, operation);
@@ -162,12 +173,15 @@ namespace StormDB
 			{
 				return Optional<SQLExpression>::from_error(CreateErrorMessage(tokens, cursor, "Expected binary operation"));
 			}
+			// Find the operator precedence of our operator
 			int bindingPower = GetBindingPower(op);
+			// If we are below the threshold then this branch of the expression tree is complete, so return
 			if (bindingPower < minBindingPower)
 			{
 				cursor = lastCursor;
 				break;
 			}
+			// Parse the rest of the expression past the operator
 			Optional<SQLExpression> b = ParseExpression(tokens, cursor, delimiters, bindingPower);
 			if (!b)
 			{
@@ -205,7 +219,7 @@ namespace StormDB
 			}
 			return Optional<ColumnDefinition>::from_error(CreateErrorMessage(tokens, cursor, "Expected column type definition"));
 		}
-		return Optional<ColumnDefinition>::from_error(CreateErrorMessage(tokens, cursor, "Expected column name"));
+		return Optional<ColumnDefinition>::from_error(CreateErrorMessage(tokens, cursor, "Expected column name identifier"));
 	}
 
 	template<typename T>
@@ -214,12 +228,14 @@ namespace StormDB
 		std::vector<T> result;
 		while (cursor < tokens.size())
 		{
+			// Check we haven't reached the end of the region the expressions should be
 			const Token& current = tokens[cursor];
 			for (const Token& delimiter : delimiters)
 			{
 				if (current == delimiter)
 					return result;
 			}
+			// If we already have found at least 1 expression, then we expect a comma to separate expressions
 			if (!result.empty())
 			{
 				if (!ExpectToken(tokens, cursor, TokenFromSymbol(SYMBOL_COMMA)))
@@ -228,7 +244,7 @@ namespace StormDB
 				}
 				cursor++;
 			}
-
+			// Try and parse an expression at the current location, delimited by commas
 			Optional<T> expression = fn(tokens, cursor, CombineVectors(delimiters, { TokenFromSymbol(SYMBOL_COMMA) }));
 			if (!expression)
 			{
@@ -243,13 +259,16 @@ namespace StormDB
 	{
 		uint32_t c = cursor;
 		SelectStatement statement;
+		// Expect a SELECT keyword
 		if (ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_SELECT)))
 		{
 			c++;
 			Token fromToken = TokenFromKeyword(KEYWORD_FROM);
+			// Then a list of expressions representing which columns to select
 			Optional<std::vector<SQLExpression>> expressions = ParseExpressions<SQLExpression>(tokens, c, { fromToken, TokenFromKeyword(KEYWORD_WHERE), TokenFromSymbol(SYMBOL_SEMICOLON) }, ParseExpression);
 			if (!expressions)
 			{
+				// * is a valid column expression
 				if (ExpectToken(tokens, c, TokenFromSymbol(SYMBOL_ASTERISK)))
 				{
 					SQLExpression expression;
@@ -268,9 +287,12 @@ namespace StormDB
 				return Optional<SelectStatement>::from_error(CreateErrorMessage(tokens, c, "Expected column identifiers"));
 			}
 			statement.Columns = expressions.value();
+			// Check if there is a FROM token
+			// Selects without a FROM clause must only select constant values (eg. SELECT 1 + 1)
 			if (ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_FROM)))
 			{
 				c++;
+				// Find table name
 				std::optional<Token> table = ParseToken(tokens, c, TokenType::Identifier);
 				if (!table)
 				{
@@ -279,13 +301,16 @@ namespace StormDB
 				statement.Table = table.value();
 			}
 
+			// Check if there is a WHERE clause
 			if (ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_WHERE)))
 			{
 				c++;
+				// WHERE clause only valid if there is a FROM clause (valid table name)
 				if (!TokenValid(statement.Table))
 				{
 					return Optional<SelectStatement>::from_error(CreateErrorMessage(tokens, c, "WHERE clause found with no FROM clause"));
 				}
+				// Parse the WHERE expression
 				Optional<SQLExpression> whereExpression = ParseExpression(tokens, c, { TokenFromSymbol(SYMBOL_SEMICOLON) });
 				if (!whereExpression)
 				{
@@ -304,26 +329,30 @@ namespace StormDB
 	{
 		uint32_t c = cursor;
 		InsertStatement statement;
+		// Expect an INSERT keyword
 		if (ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_INSERT)))
 		{
 			c++;
+			// Expect an INSERT keyword (must be of the form: INSERT INTO)
 			if (!ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_INTO)))
 			{
 				return Optional<InsertStatement>::from_error(CreateErrorMessage(tokens, c, "Expected INTO keyword"));
 			}
 			c++;
+			// Find the table name to insert into
 			std::optional<Token> table = ParseToken(tokens, c, TokenType::Identifier);
 			if (!table)
 			{
 				return Optional<InsertStatement>::from_error(CreateErrorMessage(tokens, c, "Expected table identitifer"));
 			}
 			statement.Table = table.value();
-			
+			// Expect a VALUES keyword (must be of the form: INSERT INTO [table] VALUES)
 			if (!ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_VALUES)))
 			{
 				return Optional<InsertStatement>::from_error(CreateErrorMessage(tokens, c, "Expected VALUES keyword"));
 			}
 			c++;
+			// Expect an open parenthesis
 			if (!ExpectToken(tokens, c, TokenFromSymbol(SYMBOL_LEFT_PAREN)))
 			{
 				return Optional<InsertStatement>::from_error(CreateErrorMessage(tokens, c, "Expected '('"));
@@ -331,17 +360,20 @@ namespace StormDB
 			c++;
 
 			Token rightParen = TokenFromSymbol(SYMBOL_RIGHT_PAREN);
+			// Parse expressions reprensenting the values to insert into the table
+			// eg. INSERT INTO [table] VALUES ([expressions])
 			Optional<std::vector<SQLExpression>> expressions = ParseExpressions<SQLExpression>(tokens, c, { rightParen }, ParseExpression);
 			if (!expressions)
 			{
 				return Optional<InsertStatement>::from_error(expressions.get_error());
 			}
+			// Cannot insert nothing
 			if (expressions->empty())
 			{
 				return Optional<InsertStatement>::from_error(CreateErrorMessage(tokens, c, "Expected values"));
 			}
 			statement.Values = expressions.value();
-
+			// Expect a closing parenthesis
 			if (!ExpectToken(tokens, c, TokenFromSymbol(SYMBOL_RIGHT_PAREN)))
 			{
 				return Optional<InsertStatement>::from_error(CreateErrorMessage(tokens, c, "Expected ')'"));
@@ -358,21 +390,23 @@ namespace StormDB
 	{
 		uint32_t c = cursor;
 		CreateStatement statement;
+		// Expect a CREATE keyword
 		if (ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_CREATE)))
 		{
 			c++;
+			// Expect a TABLE keyword (must be of the form: CREATE TABLE)
 			if (!ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_TABLE)))
 			{
 				return Optional<CreateStatement>::from_error(CreateErrorMessage(tokens, c, "Expected TABLE keyword"));
 			}
 			c++;
-
+			// Find the name of the table to create
 			std::optional<Token> tableName = ParseToken(tokens, c, TokenType::Identifier);
 			if (!tableName)
 			{
 				return Optional<CreateStatement>::from_error(CreateErrorMessage(tokens, c, "Expected table name identifier"));
 			}
-
+			// Expect an open parenthesis
 			if (!ExpectToken(tokens, c, TokenFromSymbol(SYMBOL_LEFT_PAREN)))
 			{
 				return Optional<CreateStatement>::from_error(CreateErrorMessage(tokens, c, "Expected '('"));
@@ -380,6 +414,7 @@ namespace StormDB
 			c++;
 
 			Token rightParen = TokenFromSymbol(SYMBOL_RIGHT_PAREN);
+			// Find the column definitions between the opening and closing parentheses
 			Optional<std::vector<ColumnDefinition>> columnDefinitions = ParseExpressions<ColumnDefinition>(tokens, c, { rightParen }, ParseColumnDefinition);
 			if (!columnDefinitions)
 			{
@@ -389,7 +424,7 @@ namespace StormDB
 			{
 				return Optional<CreateStatement>::from_error("Table requires at least 1 column");
 			}
-
+			// Expect closing parenthesis
 			if (!ExpectToken(tokens, c, TokenFromSymbol(SYMBOL_RIGHT_PAREN)))
 			{
 				return Optional<CreateStatement>::from_error(CreateErrorMessage(tokens, c, "Expected ')'"));
@@ -441,6 +476,7 @@ namespace StormDB
 		return Optional<SQLStatement>::from_error(CreateErrorMessage(tokens, cursor, "Expected statement"));
 	}
 
+	// Remove comment tokens
 	std::vector<Token> FilterComments(const std::vector<Token>& tokens)
 	{
 		std::vector<Token> result;
@@ -453,6 +489,7 @@ namespace StormDB
 		return result;
 	}
 
+	// Parse a list of SQL statements from a set of tokens
 	ParseResult ParseSQL(const std::vector<Token>& tokens)
 	{
 		ParseResult result;
@@ -467,6 +504,7 @@ namespace StormDB
 			}
 			result.Statements.push_back(statement.value());
 
+			// Support multiple redundant semi colons
 			Token semicolon = TokenFromSymbol(SYMBOL_SEMICOLON);
 			bool hasSemicolon = false;
 			while (ExpectToken(tokens, cursor, semicolon))
