@@ -54,7 +54,7 @@ namespace StormDB
 		std::vector<SQLExpression> Values;
 	};
 
-	struct STORMDB_API ColumnDefinition
+	struct STORMDB_API SQLColumnDefinition
 	{
 	public:
 		Token Name;
@@ -65,7 +65,7 @@ namespace StormDB
 	{
 	public:
 		Token Name;
-		std::vector<ColumnDefinition> Columns;
+		std::vector<SQLColumnDefinition> Columns;
 	};
 
 	struct STORMDB_API SQLStatement

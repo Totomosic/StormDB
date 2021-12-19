@@ -41,6 +41,7 @@ namespace StormDB
 			if (token.Value == SYMBOL_MULTIPLY || token.Value == SYMBOL_DIVIDE)
 				return 5;
 		}
+		return 0;
 	}
 
 	// Utility method to provide a location and some context for error messages
@@ -50,7 +51,7 @@ namespace StormDB
 		return "[" + FormatSourceLocation(token.Location) + "]: " + message + ", got: " + token.Value;
 	}
 
-	bool ExpectToken(const std::vector<Token>& tokens, uint32_t cursor, const Token& token)
+	bool CheckToken(const std::vector<Token>& tokens, uint32_t cursor, const Token& token)
 	{
 		if (cursor >= tokens.size())
 			return false;
@@ -204,22 +205,22 @@ namespace StormDB
 		return ParseExpression(tokens, cursor, delimiters, 0);
 	}
 
-	Optional<ColumnDefinition> ParseColumnDefinition(const std::vector<Token>& tokens, uint32_t& cursor, const std::vector<Token>& delimiters)
+	Optional<SQLColumnDefinition> ParseColumnDefinition(const std::vector<Token>& tokens, uint32_t& cursor, const std::vector<Token>& delimiters)
 	{
 		std::optional<Token> name = ParseToken(tokens, cursor, TokenType::Identifier);
 		if (name)
 		{
-			if (ExpectToken(tokens, cursor, TokenFromKeyword(KEYWORD_INT)) || ExpectToken(tokens, cursor, TokenFromKeyword(KEYWORD_TEXT)) || ExpectToken(tokens, cursor, TokenFromKeyword(KEYWORD_BOOL)))
+			if (CheckToken(tokens, cursor, TokenFromKeyword(KEYWORD_INT)) || CheckToken(tokens, cursor, TokenFromKeyword(KEYWORD_TEXT)) || CheckToken(tokens, cursor, TokenFromKeyword(KEYWORD_BOOL)))
 			{
-				ColumnDefinition definition;
+				SQLColumnDefinition definition;
 				definition.Name = name.value();
 				definition.Datatype = tokens[cursor];
 				cursor++;
 				return definition;
 			}
-			return Optional<ColumnDefinition>::from_error(CreateErrorMessage(tokens, cursor, "Expected column type definition"));
+			return Optional<SQLColumnDefinition>::from_error(CreateErrorMessage(tokens, cursor, "Expected column type definition"));
 		}
-		return Optional<ColumnDefinition>::from_error(CreateErrorMessage(tokens, cursor, "Expected column name identifier"));
+		return Optional<SQLColumnDefinition>::from_error(CreateErrorMessage(tokens, cursor, "Expected column name identifier"));
 	}
 
 	template<typename T>
@@ -238,7 +239,7 @@ namespace StormDB
 			// If we already have found at least 1 expression, then we expect a comma to separate expressions
 			if (!result.empty())
 			{
-				if (!ExpectToken(tokens, cursor, TokenFromSymbol(SYMBOL_COMMA)))
+				if (!CheckToken(tokens, cursor, TokenFromSymbol(SYMBOL_COMMA)))
 				{
 					return Optional<std::vector<T>>::from_error(CreateErrorMessage(tokens, cursor, "Expected comma"));
 				}
@@ -260,7 +261,7 @@ namespace StormDB
 		uint32_t c = cursor;
 		SelectStatement statement;
 		// Expect a SELECT keyword
-		if (ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_SELECT)))
+		if (CheckToken(tokens, c, TokenFromKeyword(KEYWORD_SELECT)))
 		{
 			c++;
 			Token fromToken = TokenFromKeyword(KEYWORD_FROM);
@@ -269,7 +270,7 @@ namespace StormDB
 			if (!expressions)
 			{
 				// * is a valid column expression
-				if (ExpectToken(tokens, c, TokenFromSymbol(SYMBOL_ASTERISK)))
+				if (CheckToken(tokens, c, TokenFromSymbol(SYMBOL_ASTERISK)))
 				{
 					SQLExpression expression;
 					expression.Type = ExpressionType::Literal;
@@ -289,7 +290,7 @@ namespace StormDB
 			statement.Columns = expressions.value();
 			// Check if there is a FROM token
 			// Selects without a FROM clause must only select constant values (eg. SELECT 1 + 1)
-			if (ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_FROM)))
+			if (CheckToken(tokens, c, TokenFromKeyword(KEYWORD_FROM)))
 			{
 				c++;
 				// Find table name
@@ -302,7 +303,7 @@ namespace StormDB
 			}
 
 			// Check if there is a WHERE clause
-			if (ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_WHERE)))
+			if (CheckToken(tokens, c, TokenFromKeyword(KEYWORD_WHERE)))
 			{
 				c++;
 				// WHERE clause only valid if there is a FROM clause (valid table name)
@@ -330,11 +331,11 @@ namespace StormDB
 		uint32_t c = cursor;
 		InsertStatement statement;
 		// Expect an INSERT keyword
-		if (ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_INSERT)))
+		if (CheckToken(tokens, c, TokenFromKeyword(KEYWORD_INSERT)))
 		{
 			c++;
 			// Expect an INSERT keyword (must be of the form: INSERT INTO)
-			if (!ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_INTO)))
+			if (!CheckToken(tokens, c, TokenFromKeyword(KEYWORD_INTO)))
 			{
 				return Optional<InsertStatement>::from_error(CreateErrorMessage(tokens, c, "Expected INTO keyword"));
 			}
@@ -347,13 +348,13 @@ namespace StormDB
 			}
 			statement.Table = table.value();
 			// Expect a VALUES keyword (must be of the form: INSERT INTO [table] VALUES)
-			if (!ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_VALUES)))
+			if (!CheckToken(tokens, c, TokenFromKeyword(KEYWORD_VALUES)))
 			{
 				return Optional<InsertStatement>::from_error(CreateErrorMessage(tokens, c, "Expected VALUES keyword"));
 			}
 			c++;
 			// Expect an open parenthesis
-			if (!ExpectToken(tokens, c, TokenFromSymbol(SYMBOL_LEFT_PAREN)))
+			if (!CheckToken(tokens, c, TokenFromSymbol(SYMBOL_LEFT_PAREN)))
 			{
 				return Optional<InsertStatement>::from_error(CreateErrorMessage(tokens, c, "Expected '('"));
 			}
@@ -374,7 +375,7 @@ namespace StormDB
 			}
 			statement.Values = expressions.value();
 			// Expect a closing parenthesis
-			if (!ExpectToken(tokens, c, TokenFromSymbol(SYMBOL_RIGHT_PAREN)))
+			if (!CheckToken(tokens, c, TokenFromSymbol(SYMBOL_RIGHT_PAREN)))
 			{
 				return Optional<InsertStatement>::from_error(CreateErrorMessage(tokens, c, "Expected ')'"));
 			}
@@ -391,11 +392,11 @@ namespace StormDB
 		uint32_t c = cursor;
 		CreateStatement statement;
 		// Expect a CREATE keyword
-		if (ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_CREATE)))
+		if (CheckToken(tokens, c, TokenFromKeyword(KEYWORD_CREATE)))
 		{
 			c++;
 			// Expect a TABLE keyword (must be of the form: CREATE TABLE)
-			if (!ExpectToken(tokens, c, TokenFromKeyword(KEYWORD_TABLE)))
+			if (!CheckToken(tokens, c, TokenFromKeyword(KEYWORD_TABLE)))
 			{
 				return Optional<CreateStatement>::from_error(CreateErrorMessage(tokens, c, "Expected TABLE keyword"));
 			}
@@ -407,7 +408,7 @@ namespace StormDB
 				return Optional<CreateStatement>::from_error(CreateErrorMessage(tokens, c, "Expected table name identifier"));
 			}
 			// Expect an open parenthesis
-			if (!ExpectToken(tokens, c, TokenFromSymbol(SYMBOL_LEFT_PAREN)))
+			if (!CheckToken(tokens, c, TokenFromSymbol(SYMBOL_LEFT_PAREN)))
 			{
 				return Optional<CreateStatement>::from_error(CreateErrorMessage(tokens, c, "Expected '('"));
 			}
@@ -415,7 +416,7 @@ namespace StormDB
 
 			Token rightParen = TokenFromSymbol(SYMBOL_RIGHT_PAREN);
 			// Find the column definitions between the opening and closing parentheses
-			Optional<std::vector<ColumnDefinition>> columnDefinitions = ParseExpressions<ColumnDefinition>(tokens, c, { rightParen }, ParseColumnDefinition);
+			Optional<std::vector<SQLColumnDefinition>> columnDefinitions = ParseExpressions<SQLColumnDefinition>(tokens, c, { rightParen }, ParseColumnDefinition);
 			if (!columnDefinitions)
 			{
 				return Optional<CreateStatement>::from_error(columnDefinitions.get_error());
@@ -425,7 +426,7 @@ namespace StormDB
 				return Optional<CreateStatement>::from_error("Table requires at least 1 column");
 			}
 			// Expect closing parenthesis
-			if (!ExpectToken(tokens, c, TokenFromSymbol(SYMBOL_RIGHT_PAREN)))
+			if (!CheckToken(tokens, c, TokenFromSymbol(SYMBOL_RIGHT_PAREN)))
 			{
 				return Optional<CreateStatement>::from_error(CreateErrorMessage(tokens, c, "Expected ')'"));
 			}
@@ -440,7 +441,7 @@ namespace StormDB
 	Optional<SQLStatement> ParseStatement(const std::vector<Token>& tokens, uint32_t& cursor)
 	{
 		SQLStatement statement;
-		if (ExpectToken(tokens, cursor, TokenFromKeyword(KEYWORD_SELECT)))
+		if (CheckToken(tokens, cursor, TokenFromKeyword(KEYWORD_SELECT)))
 		{
 			Optional<SelectStatement> select = ParseSelectStatement(tokens, cursor);
 			if (select)
@@ -451,7 +452,7 @@ namespace StormDB
 			}
 			return Optional<SQLStatement>::from_error(select.get_error());
 		}
-		else if (ExpectToken(tokens, cursor, TokenFromKeyword(KEYWORD_INSERT)))
+		else if (CheckToken(tokens, cursor, TokenFromKeyword(KEYWORD_INSERT)))
 		{
 			Optional<InsertStatement> insert = ParseInsertStatement(tokens, cursor);
 			if (insert)
@@ -462,7 +463,7 @@ namespace StormDB
 			}
 			return Optional<SQLStatement>::from_error(insert.get_error());
 		}
-		else if (ExpectToken(tokens, cursor, TokenFromKeyword(KEYWORD_CREATE)))
+		else if (CheckToken(tokens, cursor, TokenFromKeyword(KEYWORD_CREATE)))
 		{
 			Optional<CreateStatement> create = ParseCreateStatement(tokens, cursor);
 			if (create)
@@ -507,7 +508,7 @@ namespace StormDB
 			// Support multiple redundant semi colons
 			Token semicolon = TokenFromSymbol(SYMBOL_SEMICOLON);
 			bool hasSemicolon = false;
-			while (ExpectToken(tokens, cursor, semicolon))
+			while (CheckToken(tokens, cursor, semicolon))
 			{
 				cursor++;
 				hasSemicolon = true;
