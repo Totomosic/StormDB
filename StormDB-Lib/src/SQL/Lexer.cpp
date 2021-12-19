@@ -224,7 +224,7 @@ namespace StormDB
 		LexResult result;
 		Cursor cursor;
 
-		constexpr Lexer lexers[] = { LexKeyword, LexSymbol, LexComment, LexStringLiteral, LexNumericLiteral, LexIdentifier };
+		constexpr Lexer lexers[] = { LexKeyword, LexComment, LexSymbol, LexStringLiteral, LexNumericLiteral, LexIdentifier };
 
 		while (cursor.Position < source.size())
 		{

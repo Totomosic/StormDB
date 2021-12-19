@@ -13,6 +13,8 @@ namespace StormDB
 
 	STORMDB_API enum class TokenType
 	{
+		None,
+
 		Keyword,
 		Symbol,
 		Identifier,
@@ -45,7 +47,7 @@ namespace StormDB
 	struct STORMDB_API Token
 	{
 	public:
-		TokenType Type;
+		TokenType Type = TokenType::None;
 		SourceLocation Location;
 		std::string Value;
 	};
@@ -58,6 +60,11 @@ namespace StormDB
 	inline bool operator!=(const Token& left, const Token& right)
 	{
 		return !(left == right);
+	}
+
+	constexpr bool TokenValid(const Token& token)
+	{
+		return token.Type != TokenType::None;
 	}
 
 	inline std::string FormatSourceLocation(const SourceLocation& location)
@@ -125,6 +132,10 @@ namespace StormDB
 	constexpr char* SYMBOL_GT = ">";
 	constexpr char* SYMBOL_LTE = "<=";
 	constexpr char* SYMBOL_LT = "<";
+	constexpr char* SYMBOL_PLUS = "+";
+	constexpr char* SYMBOL_MINUS = "-";
+	constexpr char* SYMBOL_MULTIPLY = "*";
+	constexpr char* SYMBOL_DIVIDE = "/";
 
 	constexpr char* SYMBOLS[] = {
 		SYMBOL_SEMICOLON,
@@ -139,6 +150,10 @@ namespace StormDB
 		SYMBOL_LTE,
 		SYMBOL_GT,
 		SYMBOL_LT,
+		SYMBOL_PLUS,
+		SYMBOL_MINUS,
+		SYMBOL_MULTIPLY,
+		SYMBOL_DIVIDE,
 	};
 
 	constexpr int SYMBOL_SEPARATION = 1;

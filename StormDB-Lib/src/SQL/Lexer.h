@@ -58,12 +58,19 @@ namespace StormDB
 			c == SYMBOL_COMMA[0] ||
 			c == SYMBOL_LEFT_PAREN[0] ||
 			c == SYMBOL_RIGHT_PAREN[0] ||
+			c == SYMBOL_PLUS[0] ||
+			c == SYMBOL_MINUS[0] ||
+			c == SYMBOL_GT[0] ||
+			c == SYMBOL_LT[0] ||
+			c == SYMBOL_EQUALS[0] ||
+			c == SYMBOL_MULTIPLY[0] ||
+			c == SYMBOL_DIVIDE[0] ||
 			c == SYMBOL_SEMICOLON[0];
 	}
 
 	constexpr bool IsWhitespaceOrSymbol(char c)
 	{
-		return IsWhitespace(c) || IsSymbol(c) || c == '-';
+		return IsWhitespace(c) || IsSymbol(c);
 	}
 
 	template<bool IncComments = false>

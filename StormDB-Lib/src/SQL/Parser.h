@@ -1,5 +1,7 @@
 #pragma once
 #include "Lexer.h"
+#include "Optional.h"
+#include <memory>
 
 namespace StormDB
 {
@@ -14,14 +16,27 @@ namespace StormDB
 
 	STORMDB_API enum class ExpressionType
 	{
+		None,
 		Literal,
+		Binary,
 	};
+
+	struct BinaryExpression;
 
 	struct STORMDB_API SQLExpression
 	{
 	public:
-		ExpressionType Type;
+		ExpressionType Type = ExpressionType::None;
 		Token Literal;
+		std::shared_ptr<BinaryExpression> Binary;
+	};
+
+	struct STORMDB_API BinaryExpression
+	{
+	public:
+		SQLExpression Left;
+		SQLExpression Right;
+		Token Operator;
 	};
 
 	struct STORMDB_API SelectStatement
@@ -29,6 +44,7 @@ namespace StormDB
 	public:
 		Token Table;
 		std::vector<SQLExpression> Columns;
+		SQLExpression Where;
 	};
 
 	struct STORMDB_API InsertStatement
@@ -52,14 +68,6 @@ namespace StormDB
 		std::vector<ColumnDefinition> Columns;
 	};
 
-	template<typename T>
-	struct STORMDB_API StatementResult
-	{
-	public:
-		T Statement;
-		std::string Error = "";
-	};
-
 	struct STORMDB_API SQLStatement
 	{
 	public:
@@ -67,7 +75,6 @@ namespace StormDB
 		SelectStatement Select;
 		InsertStatement Insert;
 		CreateStatement Create;
-		std::string Error = "";
 	};
 
 	struct STORMDB_API ParseResult
@@ -93,6 +100,7 @@ namespace StormDB
 		return token;
 	}
 
+	std::vector<Token> FilterComments(const std::vector<Token>& tokens);
 	ParseResult ParseSQL(const std::vector<Token>& tokens);
 
 }

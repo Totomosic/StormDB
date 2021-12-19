@@ -24,7 +24,7 @@ int main()
             std::cout << "Reconstructed" << std::endl;
             std::cout << StormDB::ReconstructSource(result.Tokens) << std::endl;
 
-            StormDB::ParseResult parsed = StormDB::ParseSQL(result.Tokens);
+            StormDB::ParseResult parsed = StormDB::ParseSQL(FilterComments(result.Tokens));
             if (!parsed.Error.empty())
             {
                 std::cout << parsed.Error << std::endl;
