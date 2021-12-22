@@ -248,7 +248,7 @@ namespace StormDB
 		Cursor cursor;
 
 		// Order of lexing is important
-		constexpr Lexer lexers[] = { LexKeyword, LexComment, LexSymbol, LexStringLiteral, LexNumericLiteral, LexIdentifier };
+		constexpr Lexer lexers[] = { LexKeyword, LexComment, LexNumericLiteral, LexStringLiteral, LexSymbol, LexIdentifier };
 
 		while (cursor.Position < source.size())
 		{
@@ -287,6 +287,14 @@ namespace StormDB
 				result.Errors.push_back(error);
 				break;
 			}
+		}
+
+		if (result.Errors.empty())
+		{
+			Token eof;
+			eof.Type = TokenType::EndOfFile;
+			eof.Location = cursor.Location;
+			result.Tokens.push_back(eof);
 		}
 
 		return result;

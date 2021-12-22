@@ -21,7 +21,7 @@ namespace StormDB
 		if (token.Type == TokenType::Keyword)
 		{
 			if (token.Value == KEYWORD_AND)
-				return 1;
+				return 2;
 			if (token.Value == KEYWORD_OR)
 				return 1;
 		}
@@ -36,7 +36,7 @@ namespace StormDB
 			if (token.Value == SYMBOL_LT || token.Value == SYMBOL_LTE)
 				return 3;
 			if (token.Value == SYMBOL_PLUS || token.Value == SYMBOL_MINUS)
-				return 3;
+				return 4;
 
 			if (token.Value == SYMBOL_MULTIPLY || token.Value == SYMBOL_DIVIDE)
 				return 5;
@@ -44,11 +44,20 @@ namespace StormDB
 		return 0;
 	}
 
+	std::string FormatTokenValue(const Token& token)
+	{
+		if (token.Type == TokenType::EndOfFile)
+			return "EOF";
+		if (token.Type == TokenType::Symbol)
+			return "'" + token.Value + "'";
+		return token.Value;
+	}
+
 	// Utility method to provide a location and some context for error messages
 	std::string CreateErrorMessage(const std::vector<Token>& tokens, uint32_t cursor, const std::string& message)
 	{
 		Token token = cursor >= tokens.size() ? tokens[cursor - 1] : tokens[cursor];
-		return "[" + FormatSourceLocation(token.Location) + "]: " + message + ", got: " + token.Value;
+		return "[" + FormatSourceLocation(token.Location) + "]: " + message + ", got: " + FormatTokenValue(token);
 	}
 
 	bool CheckToken(const std::vector<Token>& tokens, uint32_t cursor, const Token& token)
@@ -98,7 +107,7 @@ namespace StormDB
 				return expression;
 			}
 		}
-		return {};
+		return Optional<SQLExpression>::from_error(CreateErrorMessage(tokens, cursor, "Expected literal"));
 	}
 
 	Optional<SQLExpression> ParseExpression(const std::vector<Token>& tokens, uint32_t& cursor, const std::vector<Token>& delimiters, int minBindingPower)
@@ -154,6 +163,8 @@ namespace StormDB
 		while (cursor < tokens.size())
 		{
 			// Have we reached the end of where our expression should lie? (eg. SELECT [expressions] FROM ...)
+			if (tokens[cursor].Type == TokenType::EndOfFile)
+				return expression;
 			for (const Token& token : delimiters)
 			{
 				if (tokens[cursor] == token)
@@ -231,6 +242,8 @@ namespace StormDB
 		{
 			// Check we haven't reached the end of the region the expressions should be
 			const Token& current = tokens[cursor];
+			if (current.Type == TokenType::EndOfFile)
+				return result;
 			for (const Token& delimiter : delimiters)
 			{
 				if (current == delimiter)
@@ -495,7 +508,7 @@ namespace StormDB
 	{
 		ParseResult result;
 		uint32_t cursor = 0;
-		while (cursor < tokens.size())
+		while (cursor < tokens.size() && tokens[cursor].Type != TokenType::EndOfFile)
 		{
 			Optional<SQLStatement> statement = ParseStatement(tokens, cursor);
 			if (!statement)

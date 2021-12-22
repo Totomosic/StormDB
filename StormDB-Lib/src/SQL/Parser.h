@@ -100,6 +100,8 @@ namespace StormDB
 		return token;
 	}
 
+	Optional<SQLExpression> ParseExpression(const std::vector<Token>& tokens, uint32_t& cursor, const std::vector<Token>& delimiters);
+
 	std::vector<Token> FilterComments(const std::vector<Token>& tokens);
 	ParseResult ParseSQL(const std::vector<Token>& tokens);
 

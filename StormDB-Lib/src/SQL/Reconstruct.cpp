@@ -55,6 +55,10 @@ namespace StormDB
 		location.Column += value.size();
 	}
 
+	static void ReconstructEOF(const Token& token, std::string& str, SourceLocation& location)
+	{
+	}
+
 	static void ReconstructDefault(const Token& token, std::string& str, SourceLocation& location)
 	{
 		str += token.Value;
@@ -69,6 +73,7 @@ namespace StormDB
 		{ TokenType::NumericLiteral, ReconstructDefault },
 		{ TokenType::StringLiteral, ReconstructString },
 		{ TokenType::Symbol, ReconstructDefault },
+		{ TokenType::EndOfFile, ReconstructEOF },
 	};
 
 	std::string ReconstructSource(const std::vector<Token>& tokens)

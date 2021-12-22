@@ -14,6 +14,7 @@ namespace StormDB
 	STORMDB_API enum class TokenType
 	{
 		None,
+		EndOfFile,
 
 		Keyword,
 		Symbol,
@@ -40,6 +41,8 @@ namespace StormDB
 			return "STRING";
 		case TokenType::NumericLiteral:
 			return "NUMBER";
+		case TokenType::EndOfFile:
+			return "EOF";
 		}
 		return "Unknown";
 	}
